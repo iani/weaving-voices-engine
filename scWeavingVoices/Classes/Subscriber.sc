@@ -98,9 +98,8 @@ Subscriber {
 			// msg[0] -> offerMsg
 			// msg[1] -> Name of attribute offered
 			// msg[2..] -> data
-			var attributeName, data;
+			var attributeName, attribute, data;
 			attributeName = msg[1];
-			subscribe_p = msg[2..];
 			attribute = attributes[attributeName];
 			attribute !? {
 				this.setAttributeData(attribute, attributeName, data); // sender?????
@@ -236,7 +235,7 @@ CodeSubscriber : Subscriber {
 		requestMsg = '/requestUser';   // request code from a user, optionally subscribe
 		unsubscribeMsg = '/unsubscribeUser'; // unsubscribe from user
 		offerMsg = '/offerUser';  // broadcast new user to net, offering to subscribers
-		updateMsg = '/code'  // receive code from a user on the net
+		updateMsg = '/code';  // receive code from a user on the net
 		super.initSubscriber(argName, argPort, argUsername);
 		OSCFunc({ | msg, time, address |
 			// msg[0] -> requestUserIdMsg
@@ -249,7 +248,7 @@ CodeSubscriber : Subscriber {
 	}
 
 	getAllUsers {
-		broadcastAddress.sendMsg(requestUserIdMsg);
+		broadcastAddress.sendMsg(requestUserNameMsg);
 	}
 
 }
