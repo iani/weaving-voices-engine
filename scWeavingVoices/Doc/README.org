@@ -38,7 +38,7 @@ When an application wants to access (read) the value of an attribute, it sends t
 The =get= method does two things:
 
 1. It accesses and returns the current value of the desired attribute.  If the attribute does not yet exist in the Subscriber's dictionary, the returned value is =nil=.
-2. If the attribute has not yet been created, then it is created and furthermore, the local attribute subscribes this attribute to all remote applications in the network.  As a result of this, all remote applications will always notify the local application when they write to an attribute that the local application has created through a "get".
+2. If the attribute has not yet been created, then it is created and furthermore, the local attribute subscribes this attribute to all remote applications in the network.  As a result of this, all remote applications will always notify the local application when they write to an attribute that the local application has created by executing a =get=.
 
 ** Writing (setting) the value of an attribute: Message =put=
 
@@ -51,93 +51,3 @@ The =put= method does the following:
 1. It sets the value of the attribute locally.
 2. It sends the new value of the attribute to all remote applications that are subscribed to this attribute over OSC with an update message (default name of update message is: =/update=).  The
 3. If the attribute did not exist previously in the namespace of the local application, it is created.  Additionally, if its =notOffered= flag is set to =true= it is broadcast to all applications in the network with the message "offer".  As a result, any remote application that needs to be notified when the attribute changes, can register itself with the application that performed the =put=, so that it will always be notified in the future when the application changes the attribute.
-
-* Use
-:PROPERTIES:
-:DATE:     <2014-08-08 Fri 18:38>
-:END:
-
-All communication is done via an instance of =Subscriber=.  Class =Subscriber= provides methods for accesing a default instance.  Thus, the basic use scenario involves the following class methods:
-
-- =Subscriber.get(attributeName)= :: Return the data stored in Attribute named =attributeName=
-     - =attributeName= :: a Symbol.
-          If no attribute named =attributeName= is found, then the return value is =nil=, and a new Attribute is created, and registered with all other
-
-* get <attribute name>
-
-
-
-
-* put
-
-* Usage Scenario
-:PROPERTIES:
-:DATE:     <2014-08-05 Tue 15:34>
-:END:
-
-Start with a distributed application, consisting of several applications (running on different hardware or the same).
-
-The purpose of the Publisher module is to enable to each application:
-
-1. to share data with all other applications
-2. to receive updates of data when they change anywhere in the system.
-3. to subscribe for updates only for those data that concern the application (not global broadcasting).
-
-* Data model
-
-Data items are stored under a dictionary (Attributes dictionary).  So data items are registered by name.
-
-A data item is called an Attribute.  The structure of an Attribute is:
-
-- Name :: Unique identifier of the *attribute*.
-- Value :: Current value of the *attribute*.
-- Net Adress :: Current network location for the *application* (IP Address and Port)
-- Subscribers :: Collection of NetAdresses of the *applications* registered to receive updates when the *attribute* changes. (The collection is implemented as Set to avoid duplicates).
-- Time :: time (in seconds) when the last update was issued.  (The timestamp of the OSC message that updated the data.)
-
-* Architecture
-
-We have three classes :
-
-** Publisher
-
-The publisher holds a global dictionary of all attributes.  This includes the Net Addresses of the applications where the attributes live, and the set of subscribers of each attribute.
-
-The publisher performs the following tasks:
-
-- =put= :: Register a new attribute or update the value of an existing attribute.
-  - When a put is performed, the Publisher updates all applications that have subscribed to this attribute.
-  - Note: The =put= also registers the address of the application where the attribute lives.  If the address changes (because two different applications perform a put on the same attribute), then a warning is issued.
-- =subscribe= :: Register an application to receive updates from an attribute
-- =unsubscribe= :: Remove an application from the set of subscribers of an attribute.
-
-** Subscriber
-
-
-
-** Attribute
-
-
-
-
-
-
-
-
-
-
-
-
-
-* Architecture
-:PROPERTIES:
-:DATE:     <2014-08-05 Tue 15:35>
-:END:
-
-
-
-
-
-* Publisher
-* Subscriberu
-* Attribute
