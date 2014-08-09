@@ -146,7 +146,7 @@ Subscriber {
 		^attribute.data;
 	}
 
-	getAttribute { | attributeName, onDataNil |
+	getAttribute { | attributeName, broadCastAction |
 		var attribute;
 		attribute = attributes[attributeName];
 		attribute ?? {
@@ -172,8 +172,11 @@ Subscriber {
 
 	put { | attributeName, data, broadcast = true |
 		var attribute;
-		attribute = this.getAttribute(attributeName, {
-			this.offer(attributeName, data);
+		attribute = this.getAttribute(attributeName, { | argAttribute |
+			if (argAttribute.notOffered) {
+				this.offer(attributeName, data);
+				argAttribute.notOffered = false;
+			};
 		});
 		this.setAttributeData(attribute, attributeName, data);
 		if (broadcast) { attribute.broadcast };
@@ -257,7 +260,7 @@ CodeSubscriber : Subscriber {
 Attribute {
 	/*  Data item stored in any node of the network.
 		Broadcast  changes in your data to all subscribed nodes in the system */
-	var <name, <sender, <>data, <time, <subscribers;
+	var <name, <sender, <>data, <time, <subscribers, <>notOffered = true;
 
 	*new { | name, sender, data, time, subscribers |
 		^this.newCopyArgs(name, sender ?? Subscriber.localAddress,
