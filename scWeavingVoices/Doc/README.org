@@ -5,9 +5,14 @@
 
 Beloi connects applications in a network over OSC so that they can share data, send each other messages that update these data, and perform their own custom actions whenever the data are changed by any application in the network.
 
+* Dependencies
+
+The Beloi library also requires the classes =Notification= and =Registry=, which are part of the =tiny-sc= library.  (https://github.com/iani/tiny-sc).
+
 * Simple use example
 
 ** Example description
+
 The present example consists of two applications, a =sender= and a =receiver=.  The sender application updates the value of attribute =degree= at regular intervals.  The receiver application registers several independent actions, which are then executed each time that a new value is received on attribute =degree=:
 
 1. Post the received value to the post window.
@@ -22,7 +27,7 @@ The present example uses just three messages:
 
 No other configuration is needed.  The following cases work with the same code, and no additional setup:
 
-- The =sender= application can be the same as the =receiver= application.
+- The =sender= application can be the same as the =receiver= application, or it can be on a different computer in the local network.
 - There can be many sender applications writing to the same attribute.
 - There can be many receiver applications listening to the same attribute.
 - The =sender= and the =receiver= applications can be started in any order.
