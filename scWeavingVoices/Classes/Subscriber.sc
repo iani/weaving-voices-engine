@@ -81,14 +81,14 @@ Subscriber {
 			// msg[1] -> Name of attribute requested
 			// msg[2] -> flag: if true then subscribe
 			var attributeName, subscribe_p, attribute, data;
-			attributeName = msg[1];
-			subscribe_p = msg[2];
-			attribute = this.getAttribute(attributeName);
-			[this, thisMethod.name, "request received for attribute", attributeName, 
-			"subscribe_p is: ", subscribe_p].postln;
-			if (subscribe_p == 1) { attribute addSubscriber: address };
-			data = attribute.data;
-			data !? { address.sendMsg(\update, attributeName, *data) };
+			if (address != localAddress) { // never subscribe to yourself
+				attributeName = msg[1];
+				subscribe_p = msg[2];
+				attribute = this.getAttribute(attributeName);
+				if (subscribe_p == 1) { attribute addSubscriber: address };
+				data = attribute.data;
+				data !? { address.sendMsg(\update, attributeName, *data) };
+			}
 		}, requestMsg);
 
 		// var <offerMsg = '/offer';  
@@ -102,7 +102,7 @@ Subscriber {
 			attributeName = msg[1];
 			attribute = attributes[attributeName];
 			attribute !? {
-				this.setAttributeData(attribute, attributeName, data); // sender?????
+				this.setAttributeData(attribute, attributeName, data);
 				address.sendMsg(requestMsg, attributeName, true); // subscribe to new sender
 			};
 		}, offerMsg);	
@@ -131,7 +131,7 @@ Subscriber {
 
 	*get { | attributeName | ^this.new.get(attributeName) }
 
-	get { | attributeName |
+	get { | attributeName, defaultValue |
 		/*  --- if attribute exists, get its local cached value.
 			--- Else:
 			   (1) create attribute, setting its value to nil.
@@ -140,20 +140,19 @@ Subscriber {
 			--- Finally: return the current value of the attribute
  		*/
 		var attribute;
-		attribute = this.getAttribute(attributeName, { | argAttribute |
-				this.request(attributeName, subscribe: true)
-		});
+		attribute = this.getAttribute(attributeName, defaultValue);
 		^attribute.data;
 	}
 
-	getAttribute { | attributeName, broadCastAction |
+	getAttribute { | attributeName, defaultValue |
 		var attribute;
 		attribute = attributes[attributeName];
 		attribute ?? {
 			attribute = Attribute(attributeName);
 			attributes[attributeName] = attribute;
+			defaultValue !? { attribute.data = defaultValue; };
+			this.request(attributeName, subscribe: true);
 		};
-		attribute.data ?? { onDataNil.(attribute) };
 		^attribute;
 	}
 
@@ -172,18 +171,15 @@ Subscriber {
 
 	put { | attributeName, data, broadcast = true |
 		var attribute;
-		attribute = this.getAttribute(attributeName, { | argAttribute |
-			if (argAttribute.notOffered) {
-				this.offer(attributeName, data);
-				argAttribute.notOffered = false;
-			};
-		});
+		attribute = this.getAttribute(attributeName);
 		this.setAttributeData(attribute, attributeName, data);
+		if (attribute.notOffered) { this.offer(attribute, data) };
 		if (broadcast) { attribute.broadcast };
 	}
 
-	offer { | attributeName, data |
-		broadcastAddress.sendMsg(offerMsg, attributeName, *data);
+	offer { | attribute, data |
+		broadcastAddress.sendMsg(offerMsg, attribute.name, *data);
+		attribute.notOffered = false;
 	}
 
 	*unsubscribe { | attributeName |
@@ -207,6 +203,7 @@ Subscriber {
 	}
 
 	addUpdateAction { | listener, attributeName, action |
+		this.get(attributeName);
 		listener.addNotifier(this, attributeName, action);
 	}
 
@@ -270,12 +267,10 @@ Attribute {
 
 	setData { | argData senderAddr |
 		data = argData;
-		// time = argTime ?? { Process.elapsedTime };
 		senderAddr ?? { senderAddr = Subscriber.localAddress };
 		if (sender.notNil and: { sender != senderAddr }) {
 			this.changeSender(senderAddr);
 		};
-		//	this.broadcast;
 	}
 
 	changeSender { | newSender |
@@ -287,10 +282,7 @@ Attribute {
 	}
 
 	broadcast {
-		subscribers do: { | s |
-			s.sendMsg('/update', name, *data);
-			//	if (localAddress != s) { s.sendMsg('/update', name, *data); }
-		} 
+		subscribers do: _.sendMsg('/update', name, *data);
 	}
 
 	addSubscriber { | subscriber |

@@ -5,19 +5,101 @@
 
 Beloi connects applications in a network over OSC so that they can share data, send each other messages that update these data, and perform their own custom actions whenever the data are changed by any application in the network.
 
+* Simple use example
+
+** Example description
+The present example consists of two applications, a =sender= and a =receiver=.  The sender application updates the value of attribute =degree= at regular intervals.  The receiver application registers several independent actions, which are then executed each time that a new value is received on attribute =degree=:
+
+1. Post the received value to the post window.
+2. Display the received value on a GUI window.
+3. Play a note using the received value as scale degree.
+
+The present example uses just three messages:
+
+1. =Subscriber.put= sets and sends the data.
+2. =Subscriber.addAttributeAction= sets up a "listener object" in the receiver application to perform an action when receiving an data update for attribute =degree=.
+3. =Subscriber.removeAttributeAction= removes the action tied to a listener object for =degree=.
+
+No other configuration is needed.  The following cases work with the same code, and no additional setup:
+
+- The =sender= application can be the same as the =receiver= application.
+- There can be many sender applications writing to the same attribute.
+- There can be many receiver applications listening to the same attribute.
+- The =sender= and the =receiver= applications can be started in any order.
+
+** Code on the sender application
+
+#+BEGIN_EXAMPLE
+{
+    fork {
+        Subscriber.put(\degree, 10.rand);
+        0.25.wait;
+    };
+}.fork
+#+END_EXAMPLE
+
+** Code on the receiver application
+:PROPERTIES:
+:DATE:     <2014-08-09 Sat 19:09>
+:END:
+
+Prepare: Boot the default server so that notes can be played:
+
+: Server.default.boot;
+
+Action 1: Post the received value:
+
+#+BEGIN_EXAMPLE
+Subscriber.addUpdateAction(\degreePoster, \degree, { | data |
+   postf("The degree value received is: %\n", data);
+});
+#+End_example
+
+Action 2: Display the received value on a GUI
+
+#+BEGIN_EXAMPLE
+w = Window("degree display").front;
+w.view.layout = VLayout(n = NumberBox());
+Subscriber.addUpdateAction(n, \degree, { | data |
+	{ n.value = data; }.defer;
+});
+#+END_EXAMPLE
+
+Action 3: Play a note
+
+#+BEGIN_EXAMPLE
+Subscriber.addUpdateAction(\degreePlayer, \degree, { | data |
+   (degree: data).play
+});
+#+END_EXAMPLE
+
+The 3 actions can be removed independently like this:
+
+Remove action 1:
+
+: Subscriber.removeUpdateAction(\degreePoster, \degree);
+
+Remove action 2:
+
+To remove action 2, just close the degree display window.
+
+Remove action 3:
+
+: Subscriber.removeUpdateAction(\degreePlayer, \degree);
+
 * Concepts
 
-Beloi is based on the idea of sharing named resources which are called Attributes.  An Attribute has a name, a value called "data" which can contain any object, and a set of addresses of the applications that want to be notified when the value of the attribute changes.  The set of all attributes shared by all application in the system is called "global memory space".  The data of an attribute (i.e. the value stored inside that attribute) can be both written (changed) and read (accessed) by any application in the network.   However, each application has its own local memory space, which is an dictionary containing all attributes (named data items) that the application needs to use, either for reading or for writing.  The memory space of an application is a subset of the global memory space of all applications.  When an application performs a write or a read on its own local memory space, we call it "local application".  Conversely, when the read or write access to an attribute refers to data changed by a different application over the network, the application that changed the data is called "remote application".
+Beloi is based on the idea of sharing named data items among applications.  A shared data item is called an Attribute.  An Attribute has a name, a value called "data" which can contain any object or array of objects that can be sent via OSC, and a set of addresses of the applications that want to be notified when the value of the attribute changes.  The set of all attributes shared by all applications in the system is called /global memory space/.  The data of an attribute (i.e. the value stored inside that attribute) can be both written (changed) and read (accessed) by any application in the network.   However, each application has its own /local memory space/, which is an dictionary containing all attributes (named data items) that the application needs to use, either for reading or for writing.  The local memory space of an application is a subset of the global memory space of all applications.  When an application performs a write or a read on its own local memory space, we call it "local application".  Conversely, when the read or write access to an attribute refers to data changed by a different application over the network, the application that changed the data is called "remote application".
 
-A simple mechanism ensures that all applications update the values of the attributes in their local namespace, when these attributes are changed by any remote application in the network:
+A simple mechanism ensures that an application changes the data of an attribute, all applications that have that item in their local memory space will receive the new data of that attribute and perform any update actions which they may have registered for that attribute:
 
-1. When an application reads (accesses) the data of an attribute that was not part of its local memory space, it /subscribes/ this attribute to all remote applications, by broadcasting to the network a request message (default symbol of this message: =/request=).  All remote applications receive this message and add the address of the local application to the set of subscribers of this attribute.
+1. When an application reads (accesses) for the first time the data of an attribute that was not part of its local memory space, it /subscribes/ this attribute to all remote applications, by broadcasting to the network a request message (default symbol of this message: =/request=).  All remote applications receive this message and add the address of the local application to the set of subscribers of this attribute.
 
 2. When an application writes (sets, changes) the data of an attribute, it sends the updated value to all applications whose addresses are in the set of subscribers of that attribute.  Thus, any application that has that attribute in its local memory space will always receive updates when a remote application changes the data of that attribute.
 
-3. Furthermore, when an application writes the data of an attribute for the first time, it broadcasts that fact to all applications in the network with an message offering the attribute for subscription (default name of the message: =/offer=).  If an application that receives the offer message for an attribute that is it its local memory space, it subscribes the attribute to the address of the application that sent the offer.  This ensures that applications that require a certain attribute will subscribe that attribute to any remote applications even if those applications start writing to that attribute *after* the local application has created its local copy.
+3. Furthermore, when an application writes the data of an attribute for the first time, it broadcasts that fact to all applications in the network with an message offering the attribute for subscription (default name of the message: =/offer=).  If an application that receives the =/offer= message for an attribute that is it its local memory space, it subscribes itself at the attribute of the application that sent the offer.  This ensures that applications that require a certain attribute will subscribe that attribute to any remote application even if that application starts writing to that attribute *after* the local application has created its local copy.
 
-* Architecture
+* Architecture and Implementation Details
 
 The core of the library consists of two classes:
 
@@ -25,11 +107,11 @@ The core of the library consists of two classes:
 
 - =Subscriber= :: Instances of Subscribe serve to access the value (data) of attributes, to keep track of which applications need to be notified when an attribute is changed by the local application, and to notify the application when another application changes the data of a locally owned attribute.  A =Subscriber= stores in a dictionary all data (Attributes) that an application wants to share.  The Subscriber implicitly keeps track of the addresses of applications that should be notified when the data of an Attribute are accessed or changed by an application.  Thus the user does not need to configure the communication connections between applications.  However, it is possible to explicitly remove or add connections if required.  The Subscriber enables read and write access to the attributes through the methods =get= and =put=.  These methods take care of subcribing attributes to remote applications when needed.  The Subscriber also registers any actions (functions) that should be performed locally when the value an attribute is changed either by the local application or by a different application in the network.  One can send the Subscribe the message =addUpdateAction= to register a function to be executed when the data of an attribute are changed by the local application or by a remote application.
 
-* Reading and writing data through the Subscriber
+** Reading and writing data through the Subscriber
 
 All access to shared data - that is both reading and writing - is done through an instance of the class =Subscriber=.  One can get the default instance of Subscriber by calling =Subscriber()=.  For convenience, one may also send commonly used methods such as =get= (read, access the value of an attribute) =put= (write, set the value of an attribute), and others, directly to the =Subscriber= class.  Thus, one can write =Subscriber.get(\color)= instead of =Subscriber().get(\color)=.
 
-** Reading (accessing) the value of an attribute: Message =get=
+*** Reading (accessing) the value of an attribute: Message =get=
 
 When an application wants to access (read) the value of an attribute, it sends the message =get= to an instance of =Subscriber=, or to the class =Subscriber= as explained above.  The default instance of Subscriber can be accessed by sending the =get= message directly to the =Subscriber= class:
 
@@ -40,7 +122,7 @@ The =get= method does two things:
 1. It accesses and returns the current value of the desired attribute.  If the attribute does not yet exist in the Subscriber's dictionary, the returned value is =nil=.
 2. If the attribute has not yet been created, then it is created and furthermore, the local attribute subscribes this attribute to all remote applications in the network.  As a result of this, all remote applications will always notify the local application when they write to an attribute that the local application has created by executing a =get=.
 
-** Writing (setting) the value of an attribute: Message =put=
+*** Writing (setting) the value of an attribute: Message =put=
 
 When an application wants to change (write) the value of an attribute, it sends the message =put= to an instance of =Subscriber= or to the class =Subscriber= as explained above.
 
@@ -50,4 +132,7 @@ The =put= method does the following:
 
 1. It sets the value of the attribute locally.
 2. It sends the new value of the attribute to all remote applications that are subscribed to this attribute over OSC with an update message (default name of update message is: =/update=).  The
-3. If the attribute did not exist previously in the namespace of the local application, it is created.  Additionally, if its =notOffered= flag is set to =true= it is broadcast to all applications in the network with the message "offer".  As a result, any remote application that needs to be notified when the attribute changes, can register itself with the application that performed the =put=, so that it will always be notified in the future when the application changes the attribute.
+3. If the attribute did not exist previously in the namespace of the local application, it is created.  Additionally, if its =notOffered= flag is set to =true= it is broadcast to all applications in the network with the message =/offer=.  As a result, any remote application that needs to be notified when the attribute changes, can register itself with the application that performed the =put=, so that it will always be notified in the future when the application changes the attribute.
+
+* Sharing data
+* Sharing code
