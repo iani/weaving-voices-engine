@@ -21,6 +21,8 @@ Subscriber {
 	
 	classvar <localAddress;
 	classvar <broadcastAddress;
+	classvar <userName;
+	classvar <allApps; // dict of running apps by IP/port and user name
 
 	var <name;
 	var <port; // communication port.  Defaults to port of this sclang apps' local address
@@ -36,10 +38,31 @@ Subscriber {
 
 	*initClass {
 		NetAddr.broadcastFlag = true;
-		StartUp add: { Subscriber() };
+		StartUp add: {
+			this.registerApp;
+			Subscriber();
+		};
+	}
+
+	*registerApp {
+		broadcastAddress = NetAddr(NetAddr.getBroadcastIp, NetAddr.localAddr.port);
+		localAddress = NetAddr(NetAddr.getLocalIp, NetAddr.localAddr.port);
+		userName = "whoami".unixCmdGetStdOut;
+		allApps = Dictionary(); // tests for equality of addresses (not identity)
+		OSCFunc({ | msg, time, address |
+			allApps[address] = msg[1];
+			address.sendMsg(\runningApp, userName);
+			this.changed(\apps);
+		}, \newApp);
+		OSCFunc({ | msg, time, address |
+			allApps[address] = msg[1];
+			this.changed(\apps);
+		}, \runningApp);
+		broadcastAddress.sendMsg(\newApp, userName);
 	}
 
 	*new { | name, port, userName |
+		if (userName.isNil) { this.registerApp };
 		^Registry(this, name ?? { this.defaultName }, {
 			super.new.initSubscriber(name, 
 				port ?? { NetAddr.localAddr.port }, 
@@ -49,12 +72,10 @@ Subscriber {
 
 	*defaultName { ^'data' }
 
-	initSubscriber { | argName, argPort, argUsername |
+	initSubscriber { | argName, argPort |
 		name = argName;
 		port = argPort;
 		attributes = IdentityDictionary();
-		broadcastAddress = NetAddr(NetAddr.getBroadcastIp, port);
-		localAddress = NetAddr(NetAddr.getLocalIp, port);
 		this.initSubscriptionResponses;
 	}
 
@@ -85,7 +106,10 @@ Subscriber {
 				attributeName = msg[1];
 				subscribe_p = msg[2];
 				attribute = this.getAttribute(attributeName);
-				if (subscribe_p == 1) { attribute addSubscriber: address };
+				if (subscribe_p == 1) {
+					attribute addSubscriber: address;
+					this.changed(\subcriber, address);
+				};
 				data = attribute.data;
 				data !? { address.sendMsg(\update, attributeName, *data) };
 			}
@@ -152,6 +176,7 @@ Subscriber {
 			attributes[attributeName] = attribute;
 			defaultValue !? { attribute.data = defaultValue; };
 			this.request(attributeName, subscribe: true);
+			this.changed(\attribute, attributeName);
 		};
 		^attribute;
 	}
@@ -231,12 +256,12 @@ CodeSubscriber : Subscriber {
 
 	*defaultName { ^'code' }
 
-	initSubscriber { | argName, argPort, argUsername |
+	initSubscriber { | argName, argPort |
 		requestMsg = '/requestUser';   // request code from a user, optionally subscribe
 		unsubscribeMsg = '/unsubscribeUser'; // unsubscribe from user
 		offerMsg = '/offerUser';  // broadcast new user to net, offering to subscribers
 		updateMsg = '/code';  // receive code from a user on the net
-		super.initSubscriber(argName, argPort, argUsername);
+		super.initSubscriber(argName, argPort);
 		OSCFunc({ | msg, time, address |
 			// msg[0] -> requestUserIdMsg
 			// msg[1] -> Name (ID) of user
@@ -248,7 +273,7 @@ CodeSubscriber : Subscriber {
 	}
 
 	getAllUsers {
-		broadcastAddress.sendMsg(requestUserNameMsg);
+		broadcastAddress.sendMsg(requestUserNameMsg, userName);
 	}
 
 }
@@ -256,7 +281,7 @@ CodeSubscriber : Subscriber {
 
 Attribute {
 	/*  Data item stored in any node of the network.
-		Broadcast  changes in your data to all subscribed nodes in the system */
+		Broadcast changes in your data to all subscribed nodes in the system */
 	var <name, <sender, <>data, <time, <subscribers, <>notOffered = true;
 
 	*new { | name, sender, data, time, subscribers |
@@ -281,9 +306,7 @@ Attribute {
 		sender = newSender;
 	}
 
-	broadcast {
-		subscribers do: _.sendMsg('/update', name, *data);
-	}
+	broadcast { subscribers do: _.sendMsg('/update', name, *data); }
 
 	addSubscriber { | subscriber |
 		if (subscriber != Subscriber.localAddress) { subscribers add: subscriber };

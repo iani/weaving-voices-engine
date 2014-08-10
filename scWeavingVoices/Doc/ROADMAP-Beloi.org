@@ -1,0 +1,13 @@
+#+TODO: TODO ISSUE | CANXELLED DONE
+
+
+/Beloi: A library for sharing data and event notifications over a network via OSC./
+
+/Notes about issues and plans./
+
+* ISSUE Multi-port broadcasting?
+:PROPERTIES:
+:DATE:     <2014-08-10 Sun 10:33>
+:END:
+
+The present scheme has no way of detecting when an application is listening to a different port than the default port of SC.  This is only a problem if we want to have more than one app running beloi on one machine.  If only one app is running on each machine, then one should decide to use a globally fixed port number (57120, the default SCLang port) for all apps.  If more than one app is running on a machine, then there must be one app that listens on the global port number and to which the apps running on different ports register.  SC could perform this service.  Later, we may want to compile an independent app in C for efficiency.
