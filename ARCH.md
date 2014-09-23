@@ -5,9 +5,9 @@ Architecture
 
 This document is a draft on the software architecture for the Weaving Voices Engine. The design emphasize a multi-peer but yet simple and flexible design.
 
-#### MWC Architecture
+#### MVC Architecture
 
-The system takes a distributed approach to the **Model View Controller** architecture. 
+The system takes a distributed approach to the **Model View Controller** architecture.
 
 The system is built of **multiple agents** referred as **services**. Services can be either **Views** or **Controllers**. Each service have an **internal modular Model** which keeps its attributes in sync with the other services using a **subscription** based approach.
 
@@ -29,7 +29,7 @@ This Attributed dictionary defines the main **data model** used:
 	* Current value of the **attribute**.
 * Net Adress
 	* Current network location for the **service** (IP Address and Port)
-* Subscribers 
+* Subscribers
 	* Collection of NetAdresses of the **services** registered to the **attribute**.
 
 ###Actors
@@ -46,7 +46,7 @@ Services are instances running some logic or view, they communicate using a subs
 	* Properties:
 		* Name
 		* Value
-	
+
 	* Actions:
 		* Update the **Arbiter attributes dictionary**
 		* Update the **Local attributes dictionary**
@@ -55,9 +55,9 @@ Services are instances running some logic or view, they communicate using a subs
 
 	* Properties:
 		* Attribute Name
-	
+
 	* Actions:
-		* Updates the **Subscribers** for a particular **Name** on the **Arbiter attributes dictionary** 
+		* Updates the **Subscribers** for a particular **Name** on the **Arbiter attributes dictionary**
 		* Return the current **Attribute**, including the **latest value** for the particular **Name**
 
 
@@ -69,9 +69,9 @@ The publisher is the subscription manager and updates pusher.
 #####Attributes actions:
 
 * **PUBLISH:** Pushes updates on the **Arbiter attributes dictionary** to the registered **Services**.
-			
+
 	* Trigger:
 		* An update on the **Arbiter attributes dictionary**.
-	
+
 	* Actions:
 		* Pushes the updates on the **Arbiter attributes dictionary** to the **Subscribers** for a specific **Attribute**.
